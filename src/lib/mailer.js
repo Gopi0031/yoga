@@ -877,3 +877,114 @@ export async function sendPersonalClassNotification({ user, classData }) {
     console.error(`sendPersonalClassNotification → ${user.email}:`, err.message);
   }
 }
+/* ─────────────────────────────────────────
+   12. Contact Form Email
+───────────────────────────────────────── */
+export async function sendContactEmail({ name, email, phone, message, subject: emailSubject }) {
+  try {
+    const adminEmail = getAdminEmail();
+    const t = createTransporter();
+
+    if (!t) {
+      console.log(`📧 DEV: Contact form submission from ${name} (${email})`);
+      return true;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"/></head>
+      <body style="margin:0;padding:0;background:#f4faf6;font-family:Arial,sans-serif;">
+        <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,95,43,0.12);">
+          <div style="background:linear-gradient(135deg,#0a3d2e,#2ea065);padding:32px;text-align:center;">
+            <div style="font-size:48px;margin-bottom:10px;">📩</div>
+            <h1 style="color:#fff;font-size:22px;margin:0;font-family:Georgia,serif;">New Contact Form Submission</h1>
+          </div>
+          <div style="padding:32px;">
+            <div style="background:#f0faf4;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid rgba(76,211,137,0.2);">
+              ${[
+                ['👤', 'Name',    name],
+                ['✉️', 'Email',   email],
+                ['📱', 'Phone',   phone   || '—'],
+                ['📋', 'Subject', emailSubject || '—'],
+              ].map(([icon, label, value]) => `
+                <div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid rgba(76,211,137,0.1);">
+                  <span style="color:#6b5a3e;font-size:13px;width:80px;flex-shrink:0;">${icon} ${label}</span>
+                  <span style="color:#1a1208;font-size:13px;font-weight:600;">${value}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="background:#f9f9f9;border-radius:12px;padding:20px;border:1px solid #e8e8e8;">
+              <p style="color:#6b5a3e;font-size:12px;font-weight:700;margin:0 0 10px;letter-spacing:1px;text-transform:uppercase;">Message</p>
+              <p style="color:#1a1208;font-size:14px;line-height:1.7;margin:0;">${message}</p>
+            </div>
+            <div style="text-align:center;margin-top:24px;">
+              <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/admin/contacts"
+                 style="display:inline-block;background:linear-gradient(135deg,#005f2b,#2ea065);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">
+                View in Admin Panel →
+              </a>
+            </div>
+            <div style="border-top:1px solid #c8e6d4;margin-top:24px;padding-top:16px;text-align:center;">
+              <p style="color:#9a8a6a;font-size:10px;margin:0;">
+                Yoga Temple Contact Form · ${new Date().toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Send to admin
+    if (adminEmail) {
+      await t.sendMail({
+        from:    getSender(),
+        to:      adminEmail,
+        subject: `📩 New Contact: ${name} — ${emailSubject || 'General Inquiry'}`,
+        html,
+        text: `New contact from ${name}\nEmail: ${email}\nPhone: ${phone}\nSubject: ${emailSubject}\nMessage: ${message}`,
+      });
+      console.log(`✅ Contact email sent to admin → ${adminEmail}`);
+    }
+
+    // Auto-reply to user
+    await t.sendMail({
+      from:    getSender(),
+      to:      email,
+      subject: `🙏 Thank you for contacting Yoga Temple, ${name}!`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"/></head>
+        <body style="margin:0;padding:0;background:#f4faf6;font-family:Arial,sans-serif;">
+          <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,95,43,0.12);">
+            <div style="background:linear-gradient(135deg,#0a3d2e,#2ea065);padding:32px;text-align:center;">
+              <div style="font-size:48px;margin-bottom:10px;">🙏</div>
+              <h1 style="color:#fff;font-size:22px;margin:0;font-family:Georgia,serif;">Thank You, ${name}!</h1>
+            </div>
+            <div style="padding:32px;">
+              <p style="color:#6b5a3e;font-size:15px;line-height:1.7;margin:0 0 20px;">
+                We have received your message and will get back to you within <strong>24 hours</strong>.
+              </p>
+              <div style="background:#f0faf4;border-radius:12px;padding:16px;border:1px solid rgba(76,211,137,0.2);">
+                <p style="color:#005f2b;font-size:13px;font-weight:700;margin:0 0 8px;">Your message:</p>
+                <p style="color:#6b5a3e;font-size:13px;line-height:1.6;margin:0;">${message}</p>
+              </div>
+              <div style="border-top:1px solid #c8e6d4;margin-top:24px;padding-top:16px;text-align:center;">
+                <p style="color:#9a8a6a;font-size:11px;margin:0;font-style:italic;">ॐ Lokāḥ Samastāḥ Sukhino Bhavantu ॐ</p>
+                <p style="color:#c8e6d4;font-size:10px;margin:6px 0 0;">🔐 Yoga Temple © ${new Date().getFullYear()}</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Namaste ${name},\n\nThank you for contacting Yoga Temple! We will get back to you within 24 hours.\n\nYour message: ${message}\n\nॐ Yoga Temple`,
+    });
+
+    return true;
+  } catch (err) {
+    console.error('sendContactEmail error:', err.message);
+    return false;
+  }
+}
